@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Configuration;
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Blob;
 using System;
@@ -65,7 +65,7 @@ namespace CMS_Migration
             }
         }
 
-        private static async Task MigrateFiles(CloudBlobContainer destinationContainer,string customerFolderPath, string folderToMigrate)
+        private static async Task MigrateFiles(CloudBlobContainer destinationContainer, string customerFolderPath, string folderToMigrate)
         {
             
             string directoryPath = Path.Combine(customerFolderPath, folderToMigrate);
@@ -94,7 +94,7 @@ namespace CMS_Migration
                 }
 
                 await destinationBlob.FetchAttributesAsync();
-                destinationBlob.Metadata.Add("WithCompression", false.ToString());
+                destinationBlob.Metadata.Add("WithCompression", bool.FalseString);
                 await destinationBlob.SetMetadataAsync();
             }
 
@@ -121,8 +121,6 @@ namespace CMS_Migration
 
                 containerCt = response.ContinuationToken;
             } while (containerCt != null);
-
-
         }
 
         private static async Task MigrateBlobs(CloudBlobContainer destinationContainer, CloudBlobContainer sourceContainer, string prefix)
@@ -133,12 +131,12 @@ namespace CMS_Migration
             int blobsCount = 0;
             do
             {
-                BlobResultSegment response = await sourceContainer.ListBlobsSegmentedAsync(prefix,true, BlobListingDetails.Metadata, 100, blobCt, new BlobRequestOptions(), new OperationContext());
+                BlobResultSegment response = await sourceContainer.ListBlobsSegmentedAsync(prefix, true, BlobListingDetails.Metadata, null, blobCt, new BlobRequestOptions(), new OperationContext());
                 if (response.Results.Any())
                 {
                     await destinationContainer.CreateIfNotExistsAsync();
                 }
-                foreach (CloudBlockBlob sourceBlob in response.Results)
+                foreach (CloudBlockBlob sourceBlob in response.Results.OfType<CloudBlockBlob>())
                 {
                     CloudBlockBlob destinationBlob = destinationContainer.GetBlockBlobReference(sourceBlob.Name);
                     using (Stream stream = await sourceBlob.OpenReadAsync())
