@@ -3,6 +3,7 @@ using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Blob;
 using System;
 using System.Collections.Generic;
+using System.Data.SqlClient;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -23,6 +24,8 @@ namespace CMS_Migration
                     .Build();
 
                 _options = configuration.GetSection("Storage").Get<StorageOptions>();
+                await CleanupStorageAccount();
+                await CleanupDatabase();
                 await MigrateFiles(_options.ContentFolderPath);
                 await MigrateFiles(_options.AlternativeContentFolderPath);
                 await MigrateBlobs();
@@ -43,6 +46,36 @@ namespace CMS_Migration
 
             Console.WriteLine("Processed.");
             
+        }
+
+        private static async Task CleanupStorageAccount()
+        {
+            CloudBlobClient uatBlobClient = CloudStorageAccount.Parse(_options.UatConnectionString).CreateCloudBlobClient();
+            BlobContinuationToken containerCt = null;
+
+            do
+            {
+                ContainerResultSegment response = await uatBlobClient.ListContainersSegmentedAsync(containerCt);
+                foreach (CloudBlobContainer containerRef in response.Results.Where(t => !IsPlatform(t)))
+                {
+                    await containerRef.DeleteIfExistsAsync();
+                }
+
+                containerCt = response.ContinuationToken;
+            } while (containerCt != null);
+        }
+
+        private static async Task CleanupDatabase()
+        {
+            using (var sqlConnection = new SqlConnection(_options.UatFileStorageDbConnectionString))
+            {
+                using (SqlCommand sqlCmd = sqlConnection.CreateCommand())
+                {
+                    sqlCmd.CommandText = @"DELETE FROM [ContainerInfo] WHERE [CustomerId] NOT IN (0,1)";
+                    await sqlConnection.OpenAsync();
+                    await sqlCmd.ExecuteNonQueryAsync();
+                }
+            }
         }
 
         private static async Task MigrateFiles(string sourceAppDataPath)
@@ -156,6 +189,11 @@ namespace CMS_Migration
             } while (blobCt != null);
 
             Console.WriteLine($"Begin copy {prefix} from container {sourceContainer.Name}. Processed : {blobsCount} records");
+        }
+
+        private static bool IsPlatform(CloudBlobContainer container)
+        {
+            return container.Name != "customer-0" && container.Name != "customer-1";
         }
     }
 }
