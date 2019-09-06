@@ -26,8 +26,6 @@ namespace CMS_Migration
                 _options = configuration.GetSection("Storage").Get<StorageOptions>();
                 await CleanupStorageAccount();
                 await CleanupDatabase();
-                await MigrateFiles(_options.ContentFolderPath);
-                await MigrateFiles(_options.AlternativeContentFolderPath);
                 await MigrateBlobs();
 
                 //?
